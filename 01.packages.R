@@ -5,3 +5,18 @@
 # Authors : Guillaume Papuga
 # Last update : 27 november 2023
 #######################################################
+
+###
+# Install packages
+###
+
+
+###
+# Load packages
+###
+library (rgbif)
+library (CoordinateCleaner)
+library(dplyr)
+library(sf)
+library(here)
+library(ggplot2)
