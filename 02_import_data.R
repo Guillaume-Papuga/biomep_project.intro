@@ -37,10 +37,8 @@ med_basin_txt = sf::st_geometry(med_basin_simpl) %>%
 # 50km grid
 
 ######################### B. Plant datasets ###########################################
-
+### Study dataset
 # Import
-# Save Raw and start from computer file
-# occ_download_prep() # preview the download request before sending to GBIF
 plant_med = occ_download(pred("taxonKey", 2858200),
                          #pred_lte("coordinateUncertaintyInMeters",1000), # key is less than/equal value
                          pred_in("datasetKey", c("7a3679ef-5582-4aaa-81f0-8c2545cafc81",  # plantnet
@@ -63,19 +61,37 @@ data_plant_med = plant_med %>%
   occ_download_import() %>% # GBIF import in R
   setNames(tolower(names(.))) %>% # set lowercase column names to work with CoordinateCleaner
   filter(occurrencestatus  == "PRESENT") %>% # delete ABSENCE data
-  filter(coordinateuncertaintyinmeters < 2000 | is.na(coordinateuncertaintyinmeters)) %>% # keep low uncertainty (keep NA for now)
-  filter(!coordinateuncertaintyinmeters %in% c(301,3036,999,9999)) %>% # remove records with known default values for coordinateUncertaintyInMeters. These can be GeoLocate centroids or some other default. It is good to remove them because usually the uncertainy is larger than what is stated by the value
+  filter(taxonrank  == "SPECIES" | taxonrank  == "SUBSPECIES") %>% # delete GENUS & FAMILY data
+  filter(coordinateuncertaintyinmeters < 2000 | is.na(coordinateuncertaintyinmeters)) %>% # keep low uncertainty (keep NA for now ???)
   cc_cen(buffer = 1000, lon = "decimallongitude", lat = "decimallatitude") %>% # remove country centroids within 2km 
   cc_cap(buffer = 1000, lon = "decimallongitude", lat = "decimallatitude") %>% # remove capitals centroids within 2km
   cc_inst(buffer = 1000, lon = "decimallongitude", lat = "decimallatitude") %>% # remove zoo and herbaria within 2km 
-  cc_sea(lon = "decimallongitude", lat = "decimallatitude", ref = "buffland", value = "flagged") %>% # remove from ocean 
   distinct(decimallatitude, decimallongitude, specieskey, .keep_all = TRUE) # delete data if copied in the two datasets
 
 # Select columns
 data_plant_med = data_plant_med %>%
-  select() %>% # select appropriate columns
-  mutate () # highlight the two datasets
+  mutate (datasource = recode(datasetkey, '7a3679ef-5582-4aaa-81f0-8c2545cafc81' = 'plantnet', '50c9509d-22c7-4a22-a47d-8c48425ef4a7' = 'inat')) %>% # highlight the two datasets
+  select(gbifid, datasource, occurrenceid, # GBIF infos 
+         family, genus, species, infraspecificepithet, taxonrank, scientificname, specieskey, # taxonomy // delete infraspe infos if too large
+         decimallatitude, decimallongitude, coordinateuncertaintyinmeters, # localisation
+         eventdate, day, month, year) # date
 
 # Save
 write.csv(data_plant_med, 
-          here::here("data", "raw", "narcissus.csv"))
+          here::here("data", "raw", "data_plant_med.csv"))
+
+### Background dataset
+# Select columns
+data_raw = plant_med %>%
+  occ_download_get(overwrite=TRUE) %>% # GBIF get
+  occ_download_import() %>%
+  setNames(tolower(names(.))) %>% # set lowercase column names to work with CoordinateCleaner
+  mutate (datasource = recode(datasetkey, '7a3679ef-5582-4aaa-81f0-8c2545cafc81' = 'plantnet', '50c9509d-22c7-4a22-a47d-8c48425ef4a7' = 'inat')) %>% # highlight the two datasets
+  select(gbifid, datasource, occurrenceid, # GBIF infos 
+         family, genus, species, infraspecificepithet, taxonrank, scientificname, specieskey, # taxonomy // delete infraspe infos if too large
+         decimallatitude, decimallongitude, coordinateuncertaintyinmeters, # localisation
+         eventdate, day, month, year) # date
+
+# Save
+write.csv(data_raw, 
+          here::here("data", "raw", "background_dataset.csv"))

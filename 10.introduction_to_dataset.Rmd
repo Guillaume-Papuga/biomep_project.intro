@@ -9,22 +9,238 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+```{r load data, echo = FALSE}
+### Load the data
+# Sorted dataset
+data_plant_med = read.csv(here::here("data", "raw", "data_plant_med.csv"), 
+                           header = T, row.names = 1) %>%
+  mutate (date = as.Date(eventdate)) %>% # Convert into date
+  select (-eventdate) # delete the original column
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+# Raw dataset
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
-```{r cars}
-summary(cars)
 ```
 
-## Including Plots
+
+
+# Global analysis of the dataset
+
+## Table 1 : general analysis
+
+The aim is to built a table that summarise the general information contained in the dataset. 
+
+```{r global analysis}
+
+table(data_plant_med%>%filter(datasource == "inat")%>%select(species))
+
+nrow(unique (data_plant_med%>%filter(datasource == "inat")%>%select(species)))
+
+
+```
+
+## Table 2 : species missing
+
+```{r species missing}
+
+
+
+```
+
+
+
+# Temporal trends in the two datasets
+
+## Number of observations 
+
+```{r observation}
+# Build the dataset
+cumul_occ = data_plant_med %>%
+  arrange (datasource, date) %>%
+  group_by(datasource, date) %>%
+  summarise(occ_date = n()) %>%
+  mutate(cumul = cumsum(occ_date))
+
+# Plot
+ggplot(cumul_occ, aes(x = date, y = cumul, colour = datasource)) +
+  geom_line() +
+  theme_minimal()
+```
+
+
+
+## Trends in species richness
+
+```{r species richness}
+# Build the dataset
+cumul_sp = data_plant_med %>%
+  arrange (datasource, date) %>%
+  distinct(species, datasource, .keep_all = TRUE) %>%
+  group_by(datasource, date) %>%
+  summarise(occ_date = n()) %>%
+  mutate(cumul = cumsum(occ_date))
+
+# Plot
+ggplot(cumul_sp, aes(x = date, y = cumul, colour = datasource)) +
+  geom_line() +
+  theme_minimal()
+```
+
+
+
+# Map
 
 You can also embed plots, for example:
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r initial code for maps, echo=FALSE}
+
+
+# Load the polygon
+aut <- getData('GADM', country = 'aut', level = 0)
+aut <- st_as_sf(aut)
+
+med_basin
+
+# Create the grid ((Try with polygons
+grid_med = med_basin %>% 
+  st_make_grid(cellsize = 0.3, # A general rule of thumb is that 1 degree of latitude ~ 111 kilometres. Here 0.3×1110 ~ 33 kilometres.
+               what = "polygons") %>% 
+  st_intersection(med_basin)    
+
+plot(grid_med)
+
+# Create a dataset for occurence
+occ_spat_data = st_as_sf(data_plant_med, 
+                         coords = c("decimallongitude", "decimallatitude"), 
+                         crs = 4326) # WGS 84
+
+# Intersect the dataset
+tab = st_intersects(grid_med, occ_spat_data)
+lengths(tab)
+
+res_grid = st_sf(density = lengths(tab), 
+                 geometry = st_cast(grid_med, "MULTIPOLYGON"))
+
+
+# plot
+palette_couleurs <- brewer.pal(6, "Blues") #
+palette_couleurs = c('#f7fcfd','#e5f5f9','#ccece6','#99d8c9','#66c2a4','#41ae76','#238b45','#005824')
+
+ggplot() +
+  geom_sf(data = res_grid, aes(fill = density),lwd = 0) + # polygons filled based on the density value
+  scale_fill_gradientn(colors = palette_couleurs) +
+  # + # add the continent
+  # + # add the sutyd area
+  #scale_fill_viridis_c(option = "magma",begin = 0.1) +  # correct syntax for passing a hardcoded colour to a geom is to put it outside of the aes
+  theme_minimal() +
+  labs(title = "My graph")
+
+
+# Dynamique view
+# mapview(res_grid, zcol = "n")
+
+
+
+#
+
+# Créer le graphique avec ggplot2
+ggplot(data, aes(x = x, y = y, fill = z)) +
+  geom_tile() +
+  
+  labs(title = "Graphique avec palette de couleurs RColorBrewer")
+
+
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+## Spatial distribution occurences 
+
+```{r}
+
+```
+
+
+## Spatial distribution of species richness
+```{r}
+
+```
+
+
+
+## Complementarity of the datasets
+```{r complementarity}
+
+table(data_plant_med%>%filter(datasource == "inat")%>%select(species))
+
+```
+
+```{r}
+
+
+#Trial with sf package 
+# load some spatial data. Administrative Boundary
+#https://stackoverflow.com/questions/41787313/how-to-create-a-grid-of-       spatial-points
+# aut <- getData('GADM', country = 'aut', level = 0)
+# aut <- st_as_sf(aut)
+# #Try with polygons
+# grid <- aut %>% 
+#   st_make_grid(cellsize = 0.5, what = "polygons") %>% 
+#   st_intersection(aut)                               
+
+#fake data
+lat<-runif(1000, 46.5, 48.5)
+lon<-runif(1000, 13,16)
+pos<-data.frame(lat,lon)
+
+pos = st_as_sf(pos, coords = c("lon", "lat"), crs = 4326)
+
+tab = st_intersects(grid, pos)
+lengths(tab)
+
+grid = st_sf(n = lengths(tab), geometry = st_cast(grid, "MULTIPOLYGON"))
+
+mapview(grid, zcol = "n")
+
+
+####################"
+
+
+library(ggplot2)
+library(dplyr)
+
+# Créer des données de plantes (exemple)
+set.seed(123)
+plantes <- data.frame(
+  longitude = runif(100, -180, 180),
+  latitude = runif(100, -90, 90)
+)
+
+# Créer une grille raster
+resolution <- 2  # Définir la résolution de la grille en degrés
+lon_bins <- seq(-180, 180, by = resolution)
+lat_bins <- seq(-90, 90, by = resolution)
+
+grille_raster <- expand.grid(longitude = lon_bins, latitude = lat_bins)
+
+# Compter les observations par cellule
+observations_par_cellule <- plantes %>%
+  mutate(
+    cellule_lon = cut(longitude, breaks = lon_bins, labels = FALSE),
+    cellule_lat = cut(latitude, breaks = lat_bins, labels = FALSE)
+  ) %>%
+  group_by(cellule_lon, cellule_lat) %>%
+  summarise(nombre_observations = n(), .groups = "drop")
+
+# Fusionner la grille avec les données d'observations
+grille_raster <- left_join(grille_raster, observations_par_cellule, 
+                           by = c("longitude" = "cellule_lon", "latitude" = "cellule_lat"))
+
+# Créer la carte avec ggplot2
+ggplot(grille_raster, aes(x = longitude, y = latitude, fill = nombre_observations)) +
+  geom_tile() +
+  scale_fill_gradient(low = "white", high = "blue", na.value = "grey50", name = "Observations") +
+  labs(title = "Nombre d'observations de plantes par cellule")
+
+
+
+```
+
